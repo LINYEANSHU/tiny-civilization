@@ -289,10 +289,11 @@ export class Scene3D {
     // 键盘平移
     this._keys = {};
     window.addEventListener('keydown', (e) => {
-      if (e.target && ['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+      if (e.ctrlKey || e.metaKey || e.altKey || e.target?.closest('input, textarea, select, button, summary, [contenteditable="true"]')) return;
       this._keys[e.code] = true;
     });
     window.addEventListener('keyup', (e) => { this._keys[e.code] = false; });
+    window.addEventListener('blur', () => { this._keys = {}; });
   }
 
   _clampTarget() {

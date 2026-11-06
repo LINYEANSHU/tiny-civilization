@@ -6,17 +6,17 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 :root {
-  --bg0: #090d14;        /* 凹陷面 */
-  --bg1: #10161f;        /* 面板 */
-  --bg2: #1a2432;        /* 凸起/悬停 */
-  --bg3: #243146;        /* 高亮悬停 */
-  --edge: #04070c;       /* 方块暗边 */
+  --bg0: #16271f;
+  --bg1: #20362b;        /* 森林绿，与体素草地和木屋呼应 */
+  --bg2: #2e4738;
+  --bg3: #405d48;
+  --edge: #102119;
   --edge-l: rgba(255, 255, 255, 0.12);
-  --ink: #e9eef5;
-  --dim: #93a6b8;
-  --acc: #ffd97a;        /* 琥珀：只给动作与数值 */
+  --ink: #f4eedc;
+  --dim: #bfceb5;
+  --acc: #e7bf76;        /* 麦穗色：动作与数值 */
   --acc-ink: #201906;
-  --good: #7fd4a8;
+  --good: #a9ce92;
   --bad: #ff8a7a;
   --float-shadow: 0 10px 32px rgba(0, 0, 0, 0.55);
 }
@@ -47,7 +47,7 @@ html, body {
 .panel { position: fixed; z-index: 20; padding: 12px 14px; }
 .hidden { display: none !important; }
 
-button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
+button:focus-visible, summary:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 ::selection { background: rgba(255, 217, 122, 0.35); }
 
 /* ---------- 世界信息 ---------- */
@@ -68,9 +68,11 @@ button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
 
 /* ---------- 性能 ---------- */
 .perf {
+  display: none;
   top: 12px; right: 12px; text-align: right; font-size: 11px; color: var(--dim);
   line-height: 1.6; font-variant-numeric: tabular-nums;
 }
+.perf.is-visible { display: block; }
 .perf b { color: var(--acc); font-size: 16px; font-weight: 700; }
 .perf i { font-style: normal; }
 .perf span { color: var(--ink); }
@@ -94,6 +96,7 @@ button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
 #timeBar {
   position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
   z-index: 20; display: flex; align-items: center; gap: 4px; padding: 6px 8px;
+  max-width: calc(100vw - 24px); flex-wrap: wrap; justify-content: center; width: max-content;
 }
 .tbtn {
   background: var(--bg2); border: 1px solid var(--edge);
@@ -114,6 +117,8 @@ button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
 
 /* ---------- 上帝工具 ---------- */
 #toolPanel { top: 106px; left: 12px; width: 176px; }  /* top 由 JS 动态维护 */
+#toolPanel summary { cursor: pointer; font-weight: 600; color: var(--acc); min-height: 22px; }
+.tool-content { padding-top: 12px; max-height: calc(100dvh - 250px); overflow-y: auto; }
 .tp-title { font-size: 12px; color: var(--dim); margin: 2px 0 7px; }
 .tp-group { display: flex; flex-direction: column; gap: 3px; }
 .tool {
@@ -135,6 +140,7 @@ button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
   display: flex; justify-content: space-between; align-items: center; gap: 6px;
   background: var(--bg0); border: 1px solid var(--edge); border-radius: 0;
   padding: 4px 8px; cursor: pointer; font-size: 12px; min-width: 0;
+  width: 100%; color: var(--ink); font-family: inherit; text-align: left;
 }
 .srow:hover { background: var(--bg2); }
 .srow .sname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -159,7 +165,7 @@ button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
 #infoBody h4 { font-size: 12px; color: var(--dim); margin: 12px 0 4px; }
 
 /* ---------- 小地图 ---------- */
-#mapWrap { position: fixed; right: 12px; bottom: 14px; z-index: 20; padding: 5px; width: 218px; }
+#mapWrap { position: fixed; right: 12px; bottom: 14px; z-index: 20; padding: 5px; width: 176px; }
 #minimap {
   width: 100%; aspect-ratio: 1; cursor: zoom-in; display: block;
   border: 2px solid var(--edge); image-rendering: auto;
@@ -171,9 +177,9 @@ button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
 
 /* ---------- 历史 ---------- */
 #historyPanel {
-  position: fixed; top: 50%; left: 50%
+  position: fixed; top: 50%; left: 50%;
   transform: translate(-50%, -50%);
-  width: 500px; max-height: 72vh; z-index: 40; padding: 14px 16px;
+  width: min(500px, calc(100vw - 24px)); max-height: 72dvh; z-index: 40; padding: 14px 16px;
   display: flex; flex-direction: column;
 }
 #historyPanel.hidden { display: none !important; }
@@ -196,7 +202,7 @@ button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
 .hev.war .t { color: var(--bad); }
 
 /* ---------- 帮助 ---------- */
-#helpPanel { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 420px; z-index: 40; padding: 16px 18px; }
+#helpPanel { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); width: min(420px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); overflow-y: auto; z-index: 40; padding: 16px 18px; }
 .hp-body p { margin: 8px 0; line-height: 1.6; font-size: 13px; }
 .hp-body b { color: var(--acc); }
 
@@ -218,12 +224,13 @@ button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
 
 /* ---------- 加载遮罩 ---------- */
 #overlay {
-  position: fixed; inset: 0; z-index: 100; background: #0a0e15;
+  position: fixed; inset: 0; z-index: 100; background: var(--bg0);
   display: flex; align-items: center; justify-content: center;
 }
 #overlay.done { opacity: 0; pointer-events: none; transition: opacity .5s; }
-.ov-box { text-align: center; width: 340px; }
-.ov-title { font-size: 27px; font-weight: 800; letter-spacing: 4px; color: var(--ink); }
+.ov-box { text-align: center; width: min(400px, calc(100vw - 40px)); }
+.ov-title { font-size: 27px; font-weight: 700; color: var(--ink); }
+.ov-box h1 { font-size: 24px; }
 .ov-sub { color: var(--dim); margin: 14px 0 18px; font-size: 13px; }
 .ov-bar { height: 6px; background: var(--bg2); overflow: hidden; }
 #ovBar { height: 100%; width: 0%; background: var(--acc); transition: width .2s; }
@@ -236,7 +243,7 @@ button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
 }
 #bigMap.hidden { display: none !important; }
 .bm-head {
-  width: min(94vh, 94vw); display: flex; align-items: center; gap: 14px;
+  width: min(82dvh, 94vw); display: flex; align-items: center; gap: 14px;
   margin-bottom: 8px; flex-wrap: wrap;
 }
 .bm-title { font-size: 17px; font-weight: 700; }
@@ -258,7 +265,7 @@ button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
   padding: 5px 12px; cursor: pointer; font-family: inherit; font-size: 12px;
 }
 #bmClose:hover { background: var(--bg3); }
-.bm-body { width: min(94vh, 94vw); aspect-ratio: 1; }
+.bm-body { width: min(82dvh, 94vw); aspect-ratio: 1; }
 #bigMapCanvas {
   width: 100%; height: 100%; cursor: crosshair;
   border: 2px solid var(--edge);
@@ -271,8 +278,7 @@ button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
 ::-webkit-scrollbar-track { background: var(--bg0); }
 
 @media (prefers-reduced-motion: reduce) {
-  #ticker { transition: none; }
-  #ovBar { transition: none; }
+  #ticker, #ovBar, #overlay, .tbtn { transition: none !important; }
 }
 
 /* ============================================================
@@ -326,4 +332,38 @@ button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
 }
 #btnMapMode:hover { color: var(--ink); background: var(--bg2); }
 #btnMapMode.active { background: var(--acc); color: var(--acc-ink); border-color: var(--acc); font-weight: 700; }
+
+@media (max-width: 900px) {
+  #mapWrap { bottom: 120px; width: 142px; }
+  #ticker { top: 130px; max-width: calc(100vw - 32px); }
+}
+@media (max-width: 600px) {
+  #worldInfo { top: 10px; left: 10px; min-width: 0; width: calc(100vw - 20px); padding: 10px 12px; }
+  .wi-row { font-size: 15px; }
+  #worldName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wi-row button { min-width: 36px; min-height: 32px; margin-left: auto; }
+  .wi-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #toolPanel { left: 10px; width: 192px; max-width: calc(100vw - 20px); padding: 10px 12px; }
+  #toolPanel summary { min-height: 28px; display: list-item; align-content: center; }
+  .tool-content { max-height: calc(100dvh - 350px); }
+  .tool, .tp-sub button, .srow { min-height: 40px; }
+  #timeBar { bottom: max(10px, env(safe-area-inset-bottom)); width: calc(100vw - 20px); max-width: none; padding: 6px; gap: 4px; }
+  .tbtn { min-height: 40px; min-width: 34px; padding: 5px 6px; font-size: 12px; }
+  .tbtn.icon { padding: 5px 6px; }
+  .tbtn.jump { min-width: 40px; }
+  .tbtn.lang { min-width: 34px; }
+  .tb-sep { display: none; }
+  #mapWrap { display: none; }
+  #perfPanel { top: 130px; right: 10px; font-size: 11px; pointer-events: none; }
+  #infoPanel { top: auto !important; bottom: 155px; right: 10px; width: calc(100vw - 20px); max-height: 45dvh; }
+  #toast { bottom: 155px; max-width: calc(100vw - 24px); width: max-content; padding: 10px 14px; }
+  #ticker { top: auto; bottom: 155px; }
+  .hp-title button, #helpClose, #infoClose { min-width: 32px; min-height: 32px; }
+  .save-slot { flex-wrap: wrap; gap: 6px; }
+  .save-slot .si { flex-basis: 100%; }
+  .save-slot button, .hist-filters button, #bmClose { min-height: 40px; }
+  #bigMap { overflow-y: auto; justify-content: flex-start; padding: 20px 0; }
+  .bm-head { gap: 8px; }
+  .bm-legend { margin-left: 0; gap: 8px; }
+}
 

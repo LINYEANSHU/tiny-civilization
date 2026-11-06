@@ -15,6 +15,7 @@ import { saveWorld, loadWorld, deleteWorld, listWorlds, MANUAL_SLOTS, serializeJ
 import { t, getLang, toggleLang, applyStatic, onLangChange, evText } from './i18n.js';
 
 const $ = (id) => document.getElementById(id);
+const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 
 // 每帧复用对象（避免主循环分配）
 const _selV = new THREE.Vector3();
@@ -25,6 +26,12 @@ const WSTATE_STR = ['clear', 'cloud', 'rain', 'storm', 'snow', 'blizzard', 'fog'
 // ---------- 参数 ----------
 const qs = new URLSearchParams(location.search);
 let seedStr = qs.get('seed') || String((Math.random() * 1e9) | 0);
+// Keep a generated world's identity through reloads so its autosave can be found.
+if (!qs.get('seed')) {
+  const url = new URL(location.href);
+  url.searchParams.set('seed', seedStr);
+  history.replaceState(null, '', url);
+}
 document.title = `Tiny Civilization · ${seedStr}`;
 
 // ---------- 三件套 ----------
@@ -97,6 +104,10 @@ function layoutPanels() {
   }
 }
 window.addEventListener('resize', layoutPanels);
+const panelObserver = new ResizeObserver(layoutPanels);
+panelObserver.observe($('worldInfo'));
+panelObserver.observe($('perfPanel'));
+$('toolPanel').addEventListener('toggle', layoutPanels);
 
 // ---------- 语言切换 ----------
 applyStatic();
@@ -216,7 +227,6 @@ setInterval(() => {
   if (!sim) return;
   updateHUD();
   refreshSettleList();
-  layoutPanels();
 }, 400);
 
 setInterval(() => {
@@ -261,11 +271,13 @@ function refreshSettleList() {
   if (el.children.length !== sim.settlements.length) {
     el.innerHTML = '';
     for (const s of sim.settlements) {
-      const row = document.createElement('div');
+      const row = document.createElement('button');
+      row.type = 'button';
       row.className = 'srow';
       const n = sim.nations.get(s.nationId);
       const col = n ? `#${n.color.toString(16).padStart(6, '0')}` : '#999';
-      row.innerHTML = `<span class="dot" style="background:${col}"></span><span class="sname">${s.name}</span><span class="cnt">${t('settle.popUnit', { n: Math.round(s.pop) })}</span>`;
+      row.innerHTML = `<span class="dot" style="background:${col}"></span><span class="sname"></span><span class="cnt">${t('settle.popUnit', { n: Math.round(s.pop) })}</span>`;
+      row.querySelector('.sname').textContent = s.name;
       row.addEventListener('click', () => {
         scene3d.flyTo(s.x, s.z, 60);
         selectSettle(s.id);
@@ -313,15 +325,15 @@ function selectSettle(id) {
   if (s.wallsBuilt) builds.push(t('build.walls'));
   if (s.watchtowers.length) builds.push(`${t('build.watchtower')}×${s.watchtowers.length}`);
   const q = s.buildQueue[0];
-  const fx = q ? `<div class="row"><span>${t('panel.building')}</span><b>${t(`build.${q.type}`)} ${Math.round(q.progress / q.need * 100)}%</b></div>` : '';
+  const fx = q ? `<div class="row"><span>${t('panel.building')}</span><b>${escapeHtml(t(`build.${q.type}`))} ${Math.round(q.progress / q.need * 100)}%</b></div>` : '';
   const KNOWN_EFFECTS = { drought: 1, flood: 1, blizzard: 1, plague: 1 };
-  const effects = s.effects.length ? `<div class="note">${t('panel.effects', { list: s.effects.map(e => KNOWN_EFFECTS[e.kind] ? t(`effect.${e.kind}`) : e.kind).join(getLang() === 'zh' ? '、' : ', ') })}</div>` : '';
+  const effects = s.effects.length ? `<div class="note">${escapeHtml(t('panel.effects', { list: s.effects.map(e => KNOWN_EFFECTS[e.kind] ? t(`effect.${e.kind}`) : e.kind).join(getLang() === 'zh' ? '、' : ', ') }))}</div>` : '';
   const cultureKey = ({ wood: 'culture.wood', stone: 'culture.stone', adobe: 'culture.adobe', nordic: 'culture.nordic' })[s.cultureKey];
   const cultureLabel = cultureKey ? t('tag.culture', { v: t(cultureKey) }) : '';
   $('infoBody').innerHTML = `
-    <h3>${s.name}</h3>
+    <h3>${escapeHtml(s.name)}</h3>
     <span class="tag">${t(`tag.${Math.min(3, s.devLevel)}`)} · ${t('tag.founded', { y: s.foundedDay <= 48 ? 1 : Math.floor((s.foundedDay - 1) / 48) + 1 })} · ${cultureLabel}</span>
-    ${rows.map(r => `<div class="row"><span>${t(r[0])}</span><b>${r[1]}</b></div>`).join('')}
+    ${rows.map(r => `<div class="row"><span>${t(r[0])}</span><b>${escapeHtml(r[1])}</b></div>`).join('')}
     ${fx}
     <h4>${t('panel.builds')}</h4><div class="note">${builds.join(' · ') || t('panel.none')}</div>
     ${effects}`;
@@ -344,9 +356,9 @@ function selectAgent(id) {
     : a.job === 'child' ? t('agent.desc.child')
     : t('agent.desc.default');
   $('infoBody').innerHTML = `
-    <h3>${a.name}</h3>
-    <span class="tag">${jobDef}${s ? ' · ' + s.name : ''}${armyName}</span>
-    <div class="row"><span>${t('panel.status')}</span><b>${stateName}</b></div>
+    <h3>${escapeHtml(a.name)}</h3>
+    <span class="tag">${escapeHtml(jobDef)}${s ? ' · ' + escapeHtml(s.name) : ''}${escapeHtml(armyName)}</span>
+    <div class="row"><span>${t('panel.status')}</span><b>${escapeHtml(stateName)}</b></div>
     <div class="row"><span>${t('panel.pos')}</span><b>${Math.round(a.x)}, ${Math.round(a.z)}</b></div>
     <div class="row"><span>${t('panel.hp')}</span><b>${Math.max(0, Math.round(a.hp * 10))}%</b></div>
     <div class="note">${desc}</div>`;
@@ -424,7 +436,7 @@ function refreshHistory() {
   el.innerHTML = shown.slice(0, 120).map(e => {
     const cls = e.type === 'war' ? 'war' : e.type === 'good' ? 'good' : e.type === 'bad' ? 'bad'
       : e.type === 'build' ? 'build' : e.type === 'trade' ? 'trade' : '';
-    return `<div class="hev ${cls}"><span class="y">${t('hist.year', { y: e.year })}</span><span class="t">${evText(e)}</span></div>`;
+    return `<div class="hev ${cls}"><span class="y">${escapeHtml(t('hist.year', { y: e.year }))}</span><span class="t">${escapeHtml(evText(e))}</span></div>`;
   }).join('') || `<div class="hev"><span class="t dim-note">${t('hist.empty')}</span></div>`;
 }
 document.querySelectorAll('#histFilters button').forEach(b => {
@@ -574,12 +586,20 @@ document.querySelectorAll('.jump').forEach(b => {
   });
 });
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'Space' && sim && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+  if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.code === 'Escape') {
+    if (bigMapOpen) toggleBigMap(false);
+    for (const id of ['helpPanel', 'historyPanel', 'savePanel']) $(id).classList.add('hidden');
+    return;
+  }
+  if (e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+  if ((e.code === 'Space' || e.code === 'Enter') && e.target.closest('button, summary')) return;
+  if (e.code === 'F3') { e.preventDefault(); $('perfPanel').classList.toggle('is-visible'); layoutPanels(); }
+  if (e.code === 'Space' && sim) {
     e.preventDefault();
     sim.clock.paused = !sim.clock.paused;
   }
-  if (e.code === 'KeyM' && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) toggleBigMap();
-  if (e.code === 'Escape' && bigMapOpen) toggleBigMap(false);
+  if (e.code === 'KeyM') toggleBigMap();
 });
 
 // ---------- 上帝工具 ----------
@@ -683,7 +703,7 @@ async function renderSavePanel() {
     if (has) {
       const d = rec.savedAt ? new Date(rec.savedAt) : null;
       info.innerHTML = `<b>${slotLabel(slot)}${slot === 'autosave' ? t('slot.every3') : ''}</b>`
-        + `<span>${worldName(rec.seed)} · Seed ${rec.seed}</span>`
+        + `<span>${worldName(String(rec.seed))} · Seed ${escapeHtml(rec.seed)}</span>`
         + `<span>${d ? d.toLocaleString() : ''}</span>`;
     } else {
       info.innerHTML = `<b>${slotLabel(slot)}</b><span>${t('slot.empty')}</span>`;
@@ -746,10 +766,10 @@ function importSaveFile() {
     let data;
     try { data = JSON.parse(await file.text()); }
     catch (e) { toast(t('slot.importBadJson')); return; }
-    if (!data || typeof data !== 'object' || !data.sim || data.seed === undefined) {
+    if (!data || typeof data !== 'object' || !data.sim || typeof data.sim !== 'object' || typeof data.seed !== 'string' || !data.seed.length || data.seed.length > 512) {
       toast(t('slot.importNoData')); return;
     }
-    if (typeof data.v === 'number' && data.v < 2) {
+    if (!Number.isInteger(data.v) || data.v < 2 || data.v > 3) {
       toast(t('slot.importTooOld')); return;
     }
     let target = null;
@@ -784,7 +804,7 @@ $('saveClose').addEventListener('click', () => toggleSavePanel(false));
 // ---------- 启动 ----------
 boot().catch((e) => {
   console.error(e);
-  setProgress(t('boot.failed') + e.message, 100);
+  setProgress(t('boot.failed') + e.message, 1);
 });
 
 // 调试句柄

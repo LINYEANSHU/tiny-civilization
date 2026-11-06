@@ -11,6 +11,8 @@
 export const ZH = {
   // ---- 通用 / 顶栏 ----
   'ui.langTip': 'Switch to English',
+  'ui.worldTools': '工具与聚落',
+  'ui.close': '关闭面板',
   'tooltip.rename': '更换世界名/种子',
   'perf.render': '渲染',
   'perf.calls': '次',
@@ -260,6 +262,8 @@ export const ZH = {
 export const EN = {
   // ---- 通用 / 顶栏 ----
   'ui.langTip': '切换到中文',
+  'ui.worldTools': 'Tools & settlements',
+  'ui.close': 'Close panel',
   'tooltip.rename': 'Reroll the world (new name & seed)',
   'perf.render': 'Render',
   'perf.calls': 'calls',
@@ -558,7 +562,11 @@ export function applyStatic(root) {
   });
   root.querySelectorAll('[data-i18n-title]').forEach((el) => {
     el.title = t(el.getAttribute('data-i18n-title'));
+    if (el.tagName === 'BUTTON') el.setAttribute('aria-label', el.title);
   });
+  for (const id of ['infoClose', 'histClose', 'saveClose', 'helpClose']) {
+    doc.getElementById(id)?.setAttribute('aria-label', t('ui.close'));
+  }
   doc.documentElement.lang = cur === 'zh' ? 'zh-CN' : 'en';
 }
 
