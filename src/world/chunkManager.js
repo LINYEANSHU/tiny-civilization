@@ -397,5 +397,7 @@ export class ChunkManager {
       if (rec.meshS) rec.meshS.geometry.dispose();
       if (rec.meshW) rec.meshW.geometry.dispose();
     }
+    this.loaded.clear();
+    this.scene.remove(this.group);
   }
 }

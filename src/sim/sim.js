@@ -78,10 +78,10 @@ export class Sim {
 
     spots.forEach((sp, i) => {
       const s = Settlement.found(i, this.names.settlement(), sp.x, sp.z, terrain, 1);
-      // 初始资源随环境
+      // 初始资源随环境（确定性哈希，保证同种子重载一致）
       s.food = 55 + Math.round(sp.water * 25);
-      s.wood = 70 + Math.round(Math.random() * 40);
-      s.stone = 25 + Math.round(Math.random() * 30);
+      s.wood = 70 + Math.round(hash2(sp.x, sp.z, 401 + i) * 40);
+      s.stone = 25 + Math.round(hash2(sp.x, sp.z, 709 + i) * 30);
       this.settlements.push(s);
       s.found_buildings(this.world);
     });
@@ -201,17 +201,17 @@ export class Sim {
       for (const s of this.settlements) s.tickHour(env);
       this.disasters.updateHour(env);
       this.nations._settlements = this.settlements;
-      // 日界（跳跃时可能一帧跨多天，逐日触发日 tick）
-      if (this.clock.day !== this._lastDay) {
-        this._lastDay = this.clock.day;
-        this.history.now(this.clock.day, this.clock.year);
+      // 日界（跨多天时逐日补齐日 tick，避免跳跃/高倍速漏触发每日事件）
+      while (this._lastDay < this.clock.day) {
+        this._lastDay++;
+        this.history.now(this._lastDay, this.clock.year);
         for (const s of this.settlements) s.updateEffects(this.clock);
         this.disasters.dailyRoll(env);
         this.nations.dailyTick(env);
         // 集市日：每季首日，有市场的聚落开集
-        if (this.clock.dayOfYear % 12 === 1) {
+        if (((this._lastDay - 1) % 48 + 1) % 12 === 1) {
           for (const s of this.settlements) {
-            if (s.market) { s.festival = this.clock.day; s.morale = Math.min(100, s.morale + 3); }
+            if (s.market) { s.festival = this._lastDay; s.morale = Math.min(100, s.morale + 3); }
           }
         }
       }
@@ -233,8 +233,10 @@ export class Sim {
       const startYear = this.clock.year;
       while (done < totalDays) {
         const slice = Math.min(24, totalDays - done);   // 每片约 1 个季度
-        const hours = this.clock.advanceDays(slice);
-        this._runHours(hours);
+        for (let d = 0; d < slice; d++) {
+          const hours = this.clock.advanceDays(1);
+          this._runHours(hours);
+        }
         done += slice;
         if (onProgress) onProgress(this.clock.year, done / totalDays);
         // 让出主线程（MessageChannel 不被后台节流）

@@ -197,13 +197,17 @@ export class Scene3D {
     this._renderCb = null;
     this._lastRafAt = performance.now();
     this._lastFrameAt = performance.now();
+    this._rafId = 0;
+    this._timerId = 0;
     this._loop = this._loop.bind(this);
     this._scheduleNext();
-    // 看门狗：rAF 因窗口不可见被节流时退化为定时器驱动（移植自 WorldForge）
+    // 看门狗：rAF 因窗口不可见被节流时退化为定时器驱动，先取消旧调度防并发叠加
     this._watchdog = setInterval(() => {
-      if (!this._running) return;
+      if (!this._running || document.hidden) return;
       if (performance.now() - this._lastFrameAt > 500) {
         this._lastRafAt = 0;
+        if (this._rafId) { cancelAnimationFrame(this._rafId); this._rafId = 0; }
+        if (this._timerId) { clearTimeout(this._timerId); this._timerId = 0; }
         this._loop();
       }
     }, 400);
@@ -249,18 +253,19 @@ export class Scene3D {
   // ---------- 控制绑定 ----------
   _bindControls() {
     const el = this.canvas;
-    let dragBtn = -1, lx = 0, ly = 0;
+    let dragBtn = -1, lx = 0, ly = 0, downX = 0, downY = 0;
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     el.addEventListener('pointerdown', (e) => {
-      dragBtn = e.button; lx = e.clientX; ly = e.clientY;
+      dragBtn = e.button; lx = downX = e.clientX; ly = downY = e.clientY;
       el.setPointerCapture(e.pointerId);
     });
     el.addEventListener('pointerup', (e) => {
-      if (dragBtn === 0 && Math.abs(e.clientX - lx) + Math.abs(e.clientY - ly) < 5 && this.onClick) {
+      if (dragBtn === 0 && Math.abs(e.clientX - downX) + Math.abs(e.clientY - downY) < 5 && this.onClick) {
         this.onClick(e.clientX, e.clientY);
       }
       dragBtn = -1;
     });
+    el.addEventListener('pointercancel', () => { dragBtn = -1; });
     window.addEventListener('pointermove', (e) => {
       if (dragBtn < 0) return;
       const dx = e.clientX - lx, dy = e.clientY - ly;
@@ -410,14 +415,19 @@ export class Scene3D {
   // rAF 被节流时自动退化为定时器驱动，保证后台标签页中世界持续运转
   _scheduleNext() {
     if (!this._running) return;
+    if (this._rafId || this._timerId) return;
     const rafHealthy = (performance.now() - this._lastRafAt) < 600;
     if (rafHealthy) {
-      requestAnimationFrame(() => {
+      this._rafId = requestAnimationFrame(() => {
+        this._rafId = 0;
         this._lastRafAt = performance.now();
         this._loop();
       });
     } else {
-      setTimeout(() => this._loop(), 16);
+      this._timerId = setTimeout(() => {
+        this._timerId = 0;
+        this._loop();
+      }, 16);
       requestAnimationFrame(() => { this._lastRafAt = performance.now(); });
     }
   }
