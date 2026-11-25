@@ -84,6 +84,8 @@ export const ZH = {
   'slot.saveNow': '立即保存',
   'slot.confirmLoad': '读取「{slot}」？未保存的进度将丢失。',
   'slot.overwriteInvalid': '以当前世界覆盖无法读取的自动存档？',
+  'slot.overwriteOther': '用当前世界替换另一个世界的自动存档？',
+  'slot.loadReplacesAuto': '读取后，此世界将成为新的自动存档。',
   'slot.loadFailed': '读取失败：',
   'slot.invalid': '存档内容缺失或损坏',
   'slot.unsupported': '仅支持第 2 或 3 版存档文件',
@@ -130,6 +132,7 @@ export const ZH = {
   'boot.restoredAuto': '已从自动存档恢复世界',
   'boot.restoredSlot': '已从存档槽「{slot}」恢复世界',
   'boot.restoreFailed': '无法恢复存档。自动保存已暂停，可在存档管理中读取其他存档或手动替换自动存档。',
+  'boot.otherSeed': '已保留另一个世界的自动存档。可把当前世界保存到手动槽位，或在存档管理中替换自动存档。',
   'boot.welcome': '欢迎来到这个世界',
   'boot.failed': '启动失败：',
 
@@ -216,7 +219,7 @@ export const ZH = {
   'toast.evolve': '正在演化 {n} 年…',
   'toast.evolveProgress': '正在演化 {n} 年… {y} 年（{p}%）',
   'toast.evolved': '已演化至 {date}（{s}s）',
-  'confirm.reroll': '用一个全新的种子生成新世界？（当前世界可先 💾 保存）',
+  'confirm.reroll': '用全新的种子生成世界？新世界可以替换现有自动存档。如需保留现有进度，请先存入手动槽位。',
 
   // ---- sim 返回消息 ----
   'god.noSettleHere': '此处无法定居（水域或河床）',
@@ -357,6 +360,8 @@ export const EN = {
   'slot.saveNow': 'Save now',
   'slot.confirmLoad': 'Load {slot}? Unsaved progress will be lost.',
   'slot.overwriteInvalid': 'Overwrite the unreadable autosave with the current world?',
+  'slot.overwriteOther': 'Replace the other world’s autosave with the current world?',
+  'slot.loadReplacesAuto': 'This world will become your autosave.',
   'slot.loadFailed': 'Could not load: ',
   'slot.invalid': 'Save data is missing or damaged',
   'slot.unsupported': 'Only version 2 and 3 saves are supported',
@@ -403,6 +408,7 @@ export const EN = {
   'boot.restoredAuto': 'World restored from autosave',
   'boot.restoredSlot': 'World restored from {slot}',
   'boot.restoreFailed': 'The save could not be restored. Autosave is paused. Load another slot or replace the autosave in Save Manager.',
+  'boot.otherSeed': 'The other world’s autosave is preserved. In Save Manager, you can save this world to a manual slot or replace the autosave.',
   'boot.welcome': 'Welcome to this world',
   'boot.failed': 'Failed to start: ',
 
@@ -489,7 +495,7 @@ export const EN = {
   'toast.evolve': 'Evolving {n} years…',
   'toast.evolveProgress': 'Evolving {n} years… year {y} ({p}%)',
   'toast.evolved': 'Evolved to {date} ({s}s)',
-  'confirm.reroll': 'Reroll a brand-new world from a fresh seed? (Save the current one with 💾 first if you want to keep it.)',
+  'confirm.reroll': 'Reroll from a fresh seed? The new world can replace the existing autosave. Save any progress you want to keep in a manual slot first.',
 
   // ---- sim 返回消息 ----
   'god.noSettleHere': "Can't settle here (open water or riverbed)",

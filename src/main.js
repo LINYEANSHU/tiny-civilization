@@ -47,8 +47,28 @@ const minimap = new Minimap($('minimap'), cm);
 let sim = null;
 let selected = null;        // {type:'agent'|'settle', id}
 let selectedAgent = null;
-let autoSaveProtected = false;
+let autoSaveProtection = null;
 let consumeManualLoad = false;
+const AUTOSAVE_INTENT = 'tiny-civ.autosave-intent';
+
+function takeAutosaveIntent(seed, slot) {
+  try {
+    const intent = sessionStorage.getItem(AUTOSAVE_INTENT);
+    sessionStorage.removeItem(AUTOSAVE_INTENT);
+    return intent === JSON.stringify([seed, slot]);
+  } catch {
+    return false;
+  }
+}
+
+function openWorldWithAutosave(seed, slot = null) {
+  try { sessionStorage.setItem(AUTOSAVE_INTENT, JSON.stringify([seed, slot])); } catch { /* Save Now remains available. */ }
+  // Navigation must not checkpoint the world being left over the requested slot.
+  autoSaveProtection = 'navigating';
+  const search = new URLSearchParams({ seed });
+  if (slot) search.set('load', slot);
+  location.href = `${location.pathname}?${search}`;
+}
 
 // ---------- 工具 ----------
 let toastTimer = 0;
@@ -138,10 +158,18 @@ async function boot() {
   // 缺省读自动存档。槽位白名单校验，避免任意键注入。
   const loadParam = qs.get('load');
   const loadSlot = [ 'autosave', ...MANUAL_SLOTS ].includes(loadParam) ? loadParam : 'autosave';
+  const mayReplaceAutosave = takeAutosaveIntent(seedStr, loadParam);
   let loaded = false;
   let saveData = null;
   try {
-    const record = await loadWorld(loadSlot);
+    const [record, separateAutosave] = await Promise.all([
+      loadWorld(loadSlot), loadSlot === 'autosave' ? null : loadWorld('autosave'),
+    ]);
+    const autosave = loadSlot === 'autosave' ? record : separateAutosave;
+    if (autosave && autosave.seed !== seedStr && !mayReplaceAutosave) {
+      decodeWorldSave(autosave);
+      autoSaveProtection = 'otherSeed';
+    }
     if (record && record.seed === seedStr) {
       const save = decodeWorldSave(record);
       setProgress(t('boot.restoring'), 0.3);
@@ -154,11 +182,10 @@ async function boot() {
       setTimeout(() => toast(loadSlot === 'autosave' ? t('boot.restoredAuto') : t('boot.restoredSlot', { slot: slotLabel(loadSlot) })), 1200);
     } else if (loadParam) {
       throw new Error(t('slot.invalid'));
-    } else if (record) {
-      decodeWorldSave(record);
     }
+    if (autoSaveProtection === 'otherSeed') setTimeout(() => toast(t('boot.otherSeed'), 6000), 1200);
   } catch (e) {
-    autoSaveProtected = true;
+    autoSaveProtection = 'unreadable';
     setTimeout(() => toast(t('boot.restoreFailed'), 6000), 1200);
     console.warn('World save could not be restored', e);
   }
@@ -199,7 +226,7 @@ async function boot() {
   refreshSettleList();
   refreshHistory();
   layoutPanels();
-  if (consumeManualLoad) checkpoint(true);
+  if (consumeManualLoad || mayReplaceAutosave) checkpoint(true);
 }
 
 // ---------- 主循环 ----------
@@ -702,7 +729,7 @@ document.querySelectorAll('.tp-sub button').forEach(btn => {
 
 $('btnRename').addEventListener('click', () => {
   if (confirm(t('confirm.reroll'))) {
-    location.href = `${location.pathname}?seed=${(Math.random() * 1e9) | 0}`;
+    openWorldWithAutosave(String((Math.random() * 1e9) | 0));
   }
 });
 
@@ -728,7 +755,6 @@ async function doSave(slot) {
   };
   await saveWorld(slot, data);
   if (slot === 'autosave') {
-    autoSaveProtected = false;
     if (consumeManualLoad) {
       const url = new URL(location.href);
       url.searchParams.delete('load');
@@ -740,7 +766,7 @@ async function doSave(slot) {
 }
 
 function checkpoint(notify) {
-  if (!sim || jumping || autoSaveProtected) return;
+  if (!sim || jumping || autoSaveProtection) return;
   doSave('autosave').catch(error => {
     if (notify) toast(t('slot.saveFailed') + error.message);
   });
@@ -757,14 +783,11 @@ function mkSlotBtn(label, onClick) {
 async function loadFromSlot(slot) {
   try {
     const data = decodeWorldSave(await loadWorld(slot));
-    const message = data.seed === seedStr
+    let message = data.seed === seedStr
       ? t('slot.confirmLoad', { slot: slotLabel(slot) })
       : t('slot.otherWorld', { name: worldName(data.seed), seed: data.seed });
-    if (confirm(message)) {
-      // The pending visibility save would overwrite a selected autosave before the new page loads.
-      autoSaveProtected = true;
-      location.href = `${location.pathname}?seed=${encodeURIComponent(data.seed)}&load=${encodeURIComponent(slot)}`;
-    }
+    if (slot !== 'autosave') message += '\n' + t('slot.loadReplacesAuto');
+    if (confirm(message)) openWorldWithAutosave(data.seed, slot);
   } catch (error) {
     toast(t('slot.loadFailed') + error.message);
   }
@@ -795,8 +818,10 @@ async function renderSavePanel() {
     row.appendChild(info);
     if (slot === 'autosave') {
       row.appendChild(mkSlotBtn(t('slot.saveNow'), () => {
-        if (autoSaveProtected && !confirm(t('slot.overwriteInvalid'))) return;
+        if (autoSaveProtection === 'navigating') return;
+        if (autoSaveProtection && !confirm(t(autoSaveProtection === 'otherSeed' ? 'slot.overwriteOther' : 'slot.overwriteInvalid'))) return;
         doSave(slot).then(() => {
+          if (autoSaveProtection !== 'navigating') autoSaveProtection = null;
           toast(t('slot.saved', { slot: slotLabel(slot) }));
           return renderSavePanel();
         }).catch(e => toast(t('slot.saveFailed') + e.message));

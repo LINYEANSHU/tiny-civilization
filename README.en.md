@@ -87,7 +87,7 @@ IndexedDB autosaves every 3 minutes and when the page is hidden. It also provide
 The bottom save panel supports saving, loading, deleting and JSON export/import.
 Saves include the seed, clock, settlements, nations, voxel-edit journal, history and camera state.
 
-Opening the game resumes the autosave, including the pause state and speed. If the URL specifies a seed, the autosave must match. Loading a manual slot resumes autosaving from that world.
+Opening the game resumes the autosave, including the pause state and speed. A shared seed URL preserves the autosave of another world. Loading a manual slot from Save Manager resumes autosaving from that world.
 A seed preserves the initial world. An evolved world also needs its save. The Windows app stores data in `%APPDATA%\Entertainment Desktop\tiny-civilization` by default.
 
 ## Verification and limits
