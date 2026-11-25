@@ -8,16 +8,24 @@
 Villagers gather, farm and build on a procedural voxel continent. Settlements form nations; trade and war enter the chronicle.
 Watch quietly, or change the weather, plant a forest or found a settlement.
 
-<img src="assets/readme/current-desktop.png" width="100%" alt="Current interface, November 6, 2026: a coastal voxel settlement, world information, bottom time controls and a corner map">
+## Download for Windows
+
+**[Download the portable Windows x64 build (ZIP)](https://github.com/LINYEANSHU/tiny-civilization/releases/download/windows-v1.0.0/tiny-civilization-windows-x64.zip)** · [Release notes](https://github.com/LINYEANSHU/tiny-civilization/releases/tag/windows-v1.0.0)
+
+Extract the entire ZIP, open the `Tiny Civilization` folder, and double-click `Tiny Civilization.exe`. When the world is ready, you can watch the first settlement. Keep the folder together when moving the game.
+
+<img src="assets/readme/windows-desktop.webp" width="100%" alt="Tiny Civilization for Windows showing a voxel settlement, the world chronicle, time controls and a minimap">
 
 <details>
-<summary>View the narrow layout (390 × 844)</summary>
+<summary>View the browser layouts (desktop and narrow)</summary>
+
+<img src="assets/readme/current-desktop.png" width="100%" alt="Desktop browser layout showing a coastal voxel settlement, world information, time controls and a minimap">
 
 <img src="assets/readme/current-mobile.png" width="390" alt="Narrow civilization layout: the settlement stays central, tools collapse at the top and time controls wrap at the bottom">
 
-</details>
-
 Captured during the November 6, 2026 desktop Chromium review with SwiftShader CPU WebGL rendering. Physical phone hardware was not tested.
+
+</details>
 
 ## How the world develops
 
@@ -29,7 +37,7 @@ Captured during the November 6, 2026 desktop Chromium review with SwiftShader CP
 
 There are no victory conditions or quests. Time controls and god tools let you compare long-term changes and return to ordinary observation anytime.
 
-## Getting started
+## Run the browser version from source
 
 Requires Node.js 22+, npm and a modern desktop browser supporting WebGL 2.
 
@@ -78,7 +86,7 @@ The bottom save panel supports saving, loading, deleting and JSON export/import.
 Saves include the seed, clock, settlements, nations, voxel-edit journal, history and camera state.
 
 Loading a slot reloads the page with that save's seed. A refresh restores the autosave only when its seed matches the URL.
-A seed preserves the initial world; an evolved world also needs its save. Export backups before clearing site data.
+A seed preserves the initial world. An evolved world also needs its save. The Windows app stores data in `%APPDATA%\Entertainment Desktop\tiny-civilization` by default.
 
 ## Verification and limits
 
@@ -92,10 +100,12 @@ npm run build
 - Every `src/**/*.js` file passed `node --check`; the production build passed.
 - The existing CPU behavior verifier matched baseline **`92fb878f`**, covering terrain, noise, claims, blocks and mesh-clipping equivalence.
 - The same-day browser review covered desktop/narrow layouts, settlement selection, Chronicle, manual slots, map, language switching and seed persistence on reload.
-- The game uses Three.js / WebGL 2. The review used SwiftShader CPU rendering; normal startup does not force CPU rendering.
+- The game uses Three.js / WebGL 2. The Windows app renders on the CPU with SwiftShader. The web version follows the browser's rendering settings.
 - There is no npm unit-test suite. Long-term population/war balance, other browser engines and real touch hardware were not verified; nested save fields do not yet have a complete security validator.
 
 ## Development entry points
+
+On Windows x64 with Node.js 24, run `node desktop/build.cjs` to produce the desktop package in `desktop/dist/`. [Desktop build script](desktop/build.cjs)
 
 `src/world/` handles terrain, chunks and Worker meshing; `src/sim/` handles residents, settlements, nations and time; `src/save.js` handles persistence.
 See [DESIGN.md](DESIGN.md) for the design notes (Chinese).

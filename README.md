@@ -8,16 +8,24 @@
 在程序生成的体素大陆上，村民采集、种田、建屋，聚落发展为国家，贸易与战争写进编年史。
 你可以安静观察，也可以改变天气、播种森林或创建聚落。
 
-<img src="assets/readme/current-desktop.png" width="100%" alt="2026-11-06 当前界面：体素海岸边的聚落、世界信息、底部时间控制与右下角地图">
+## Windows 下载
+
+**[下载 Windows x64 便携版（ZIP）](https://github.com/LINYEANSHU/tiny-civilization/releases/download/windows-v1.0.0/tiny-civilization-windows-x64.zip)** · [发布说明](https://github.com/LINYEANSHU/tiny-civilization/releases/tag/windows-v1.0.0)
+
+完整解压 ZIP，进入 `Tiny Civilization` 文件夹并双击 `Tiny Civilization.exe`。世界生成后就能观察初始聚落。移动游戏时请保留整个文件夹。
+
+<img src="assets/readme/windows-desktop.webp" width="100%" alt="Tiny Civilization Windows 桌面版，显示体素聚落、世界编年史、时间控制和小地图">
 
 <details>
-<summary>查看窄屏界面（390 × 844）</summary>
+<summary>查看浏览器界面（桌面与窄屏）</summary>
+
+<img src="assets/readme/current-desktop.png" width="100%" alt="浏览器桌面布局，显示体素海岸边的聚落、世界信息、时间控制和小地图">
 
 <img src="assets/readme/current-mobile.png" width="390" alt="窄屏文明界面：聚落仍在中央，工具折叠在左上，底部控制换行排列">
 
-</details>
-
 截图来自 2026-11-06 的桌面 Chromium 审查，使用 SwiftShader 在 CPU 上执行 WebGL；未测试真实手机硬件。
+
+</details>
 
 ## 世界如何自己发展
 
@@ -29,7 +37,7 @@
 
 没有胜负或任务。时间控制与「上帝之手」让你比较长期演变，也能随时回到普通速度继续观察。
 
-## 快速开始
+## 从源码运行浏览器版
 
 需要 Node.js 22+、npm 和支持 WebGL 2 的现代桌面浏览器。
 
@@ -78,7 +86,7 @@ IndexedDB 每 3 分钟自动存档，并提供 3 个手动槽位。
 存档包含种子、时钟、聚落、国家、体素编辑日志、历史和镜头状态。
 
 读取槽位会按其种子重新加载页面；刷新时只恢复与 URL 种子匹配的自动存档。
-同一种子决定初始世界，已演化的世界还需要存档。清理网站数据前请导出备份。
+同一种子决定初始世界，已演化的世界还需要存档。Windows 桌面版默认在 `%APPDATA%\Entertainment Desktop\tiny-civilization` 保存数据。
 
 ## 验证与边界
 
@@ -92,10 +100,12 @@ npm run build
 - 全部 `src/**/*.js` 通过 `node --check`；生产构建通过。
 - 现有 CPU 行为校验与基线 **`92fb878f`** 一致，覆盖地形、噪声、领地、方块和网格裁剪等价性。
 - 同日浏览器审查覆盖桌面/窄屏布局、聚落选择、编年史、手动槽位、地图、语言切换及种子刷新恢复。
-- 游戏使用 Three.js / WebGL 2；审查采用 SwiftShader CPU 渲染，普通启动不会强制 CPU 渲染。
+- 游戏使用 Three.js / WebGL 2。Windows 桌面版通过 SwiftShader 在 CPU 上渲染；浏览器版遵循浏览器的渲染设置。
 - 仓库没有 npm 单元测试套件；未验证长期人口/战争平衡、其他浏览器引擎或真实触屏，嵌套存档字段也尚非完整安全校验。
 
 ## 开发入口
+
+在 Windows x64 上使用 Node.js 24 运行 `node desktop/build.cjs`，桌面包生成到 `desktop/dist/`。[桌面构建脚本](desktop/build.cjs)
 
 `src/world/` 管地形、区块与 Worker 网格，`src/sim/` 管居民、聚落、国家和时间，`src/save.js` 管持久化。
 设计取舍见 [DESIGN.md](DESIGN.md)。

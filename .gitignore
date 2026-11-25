@@ -13,3 +13,9 @@ OPTIMIZATION-REPORT.md
 dev.log
 *.log
 .DS_Store
+
+# Generated Windows desktop artifacts
+/desktop/.cache/
+/desktop/dist/
+/desktop/qa/
+/desktop/node_modules/

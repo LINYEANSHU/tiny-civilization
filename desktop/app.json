@@ -1,0 +1,8 @@
+{
+  "id": "tiny-civilization",
+  "name": "Tiny Civilization 微缩文明",
+  "exe": "Tiny Civilization",
+  "vite": true,
+  "background": "#18201a",
+  "webgl": true
+}
