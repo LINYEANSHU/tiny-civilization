@@ -403,6 +403,7 @@ export class AgentManager {
     }
     if (a.state === 'work') {
       a.phase += dt * 9;
+      if (q.sponsored) return;
       q.progress += dt * 1.15;
       if (q.progress >= q.need) {
         s.buildQueue.shift();

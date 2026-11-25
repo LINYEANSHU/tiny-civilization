@@ -14,7 +14,7 @@ export const VIEW_FAR = 13;       // 卸载半径
 export const SIM_NEAR = 2.2;      // 村民全模拟半径（区块）
 export const SETTLE_NEAR = 5;     // 聚落实体化半径（区块）
 
-// 时间：1 现实秒（1× 速度）= 12 游戏分钟；一天 90s；一年 48 天（四季各 12 天）
+// 时间：1 现实秒（1× 速度）= 12 游戏分钟；一天 120s；一年 48 天（四季各 12 天）
 export const GAME_MIN_PER_SEC = 12;
 export const MIN_PER_DAY = 24 * 60;
 export const DAYS_PER_MONTH = 4;

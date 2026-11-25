@@ -81,11 +81,13 @@ Use sunlight lock during accelerated simulation to reduce day/night flicker. The
 
 ## Save, export and restore
 
-IndexedDB autosaves every 3 minutes and provides 3 manual slots.
+Select a settlement and open Civic Projects to put a granary or market first in its queue using the settlement's own materials.
+
+IndexedDB autosaves every 3 minutes and when the page is hidden. It also provides 3 manual slots.
 The bottom save panel supports saving, loading, deleting and JSON export/import.
 Saves include the seed, clock, settlements, nations, voxel-edit journal, history and camera state.
 
-Loading a slot reloads the page with that save's seed. A refresh restores the autosave only when its seed matches the URL.
+Opening the game resumes the autosave, including the pause state and speed. If the URL specifies a seed, the autosave must match. Loading a manual slot resumes autosaving from that world.
 A seed preserves the initial world. An evolved world also needs its save. The Windows app stores data in `%APPDATA%\Entertainment Desktop\tiny-civilization` by default.
 
 ## Verification and limits
@@ -101,7 +103,7 @@ npm run build
 - The existing CPU behavior verifier matched baseline **`92fb878f`**, covering terrain, noise, claims, blocks and mesh-clipping equivalence.
 - The same-day browser review covered desktop/narrow layouts, settlement selection, Chronicle, manual slots, map, language switching and seed persistence on reload.
 - The game uses Three.js / WebGL 2. The Windows app renders on the CPU with SwiftShader. The web version follows the browser's rendering settings.
-- There is no npm unit-test suite. Long-term population/war balance, other browser engines and real touch hardware were not verified; nested save fields do not yet have a complete security validator.
+- Run `node --test test/world-progress.test.js` to check hourly simulation, civic projects, and save compatibility.
 
 ## Development entry points
 

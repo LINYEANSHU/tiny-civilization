@@ -9,9 +9,8 @@ import { Characters } from './render/characters.js';
 import { Particles } from './render/particles.js';
 import { Minimap } from './render/minimap.js';
 import { Sim } from './sim/sim.js';
-import { GameClock } from './sim/time.js';
 import { AUTOSAVE_MS, SEA } from './core/config.js';
-import { saveWorld, loadWorld, deleteWorld, listWorlds, MANUAL_SLOTS, serializeJournal, deserializeJournal } from './save.js';
+import { saveWorld, loadWorld, deleteWorld, listWorlds, MANUAL_SLOTS, serializeJournal, deserializeJournal, decodeWorldSave } from './save.js';
 import { t, getLang, toggleLang, applyStatic, onLangChange, evText } from './i18n.js';
 
 const $ = (id) => document.getElementById(id);
@@ -48,6 +47,8 @@ const minimap = new Minimap($('minimap'), cm);
 let sim = null;
 let selected = null;        // {type:'agent'|'settle', id}
 let selectedAgent = null;
+let autoSaveProtected = false;
+let consumeManualLoad = false;
 
 // ---------- 工具 ----------
 let toastTimer = 0;
@@ -140,22 +141,32 @@ async function boot() {
   let loaded = false;
   let saveData = null;
   try {
-    const save = await loadWorld(loadSlot);
-    if (save && save.seed === seedStr && save.v >= 2) {
-      saveData = save;
+    const record = await loadWorld(loadSlot);
+    if (record && record.seed === seedStr) {
+      const save = decodeWorldSave(record);
       setProgress(t('boot.restoring'), 0.3);
-      cm.journal = deserializeJournal(save.journal);
+      const journal = deserializeJournal(save.journal);
       sim = Sim.deserialize(save.sim, seedStr, cm);
+      cm.journal = journal;
+      saveData = save;
       loaded = true;
+      consumeManualLoad = !!loadParam;
       setTimeout(() => toast(loadSlot === 'autosave' ? t('boot.restoredAuto') : t('boot.restoredSlot', { slot: slotLabel(loadSlot) })), 1200);
-    } else if (save && save.seed !== seedStr) {
-      console.warn(`存档种子(${save.seed})与 URL 种子(${seedStr})不一致，改为新世界`);
+    } else if (loadParam) {
+      throw new Error(t('slot.invalid'));
+    } else if (record) {
+      decodeWorldSave(record);
     }
-  } catch (e) { console.warn('读档失败', e); }
+  } catch (e) {
+    autoSaveProtected = true;
+    setTimeout(() => toast(t('boot.restoreFailed'), 6000), 1200);
+    console.warn('World save could not be restored', e);
+  }
 
   if (!sim) {
     sim = new Sim(seedStr, cm);
     await sim.init(setProgress);
+    sim.clock.paused = false;
   }
   sim.history.onEvent = pushTicker;   // 新闻横幅
   // 聚落领地（禁止长树）同步到 Worker
@@ -184,10 +195,11 @@ async function boot() {
   setProgress(t('boot.welcome'), 1);
   $('overlay').classList.add('done');
   setTimeout(() => { $('overlay').style.display = 'none'; }, 800);
-  sim.clock.paused = false;
+  updateHUD();
   refreshSettleList();
   refreshHistory();
   layoutPanels();
+  if (consumeManualLoad) checkpoint(true);
 }
 
 // ---------- 主循环 ----------
@@ -227,12 +239,15 @@ setInterval(() => {
   if (!sim) return;
   updateHUD();
   refreshSettleList();
+  refreshCivicProjects();
 }, 400);
 
 setInterval(() => {
-  if (!sim || sim.clock.paused) return;
-  doSave('autosave').catch(() => {});
+  checkpoint(false);
 }, AUTOSAVE_MS);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) checkpoint(false);
+});
 
 scene3d.onStats = ({ fps, calls, tris }) => {
   $('pFps').textContent = fps;
@@ -290,7 +305,8 @@ function refreshSettleList() {
     for (const row of el.children) {
       const s = sim.settlements[i++];
       if (!s) break;
-      row.children[2].textContent = t('settle.popUnit', { n: Math.round(s.pop) });
+      const population = t('settle.popUnit', { n: Math.round(s.pop) });
+      if (row.children[2].textContent !== population) row.children[2].textContent = population;
     }
   }
 }
@@ -300,8 +316,7 @@ function selectSettle(id) {
   selected = { type: 'settle', id };
   const s = sim.settleById(id);
   if (!s) return;
-  const n = sim.nations.get(s.nationId);
-  const nat = s.nationId >= 0 ? sim.nations.list[s.nationId] : null;
+  const nat = sim.nations.get(s.nationId);
   const rows = [
     ['row.pop', t('row.popVal', { a: Math.round(s.pop), b: s.houseCap })],
     ['row.dev', t(`dev.${s.devLevel}`)],
@@ -336,8 +351,46 @@ function selectSettle(id) {
     ${rows.map(r => `<div class="row"><span>${t(r[0])}</span><b>${escapeHtml(r[1])}</b></div>`).join('')}
     ${fx}
     <h4>${t('panel.builds')}</h4><div class="note">${builds.join(' · ') || t('panel.none')}</div>
-    ${effects}`;
+    ${effects}
+    <h4>${t('project.title')}</h4><div id="civicProjects"></div>`;
   $('infoPanel').classList.remove('hidden');
+  refreshCivicProjects();
+}
+
+function refreshCivicProjects() {
+  if (selected?.type !== 'settle' || $('infoPanel').classList.contains('hidden')) return;
+  const container = $('civicProjects');
+  const settlement = sim.settleById(selected.id);
+  if (!container || !settlement) return;
+  const id = settlement.id;
+  for (const project of settlement.civicProjects()) {
+    let button = container.querySelector(`[data-project="${project.type}"]`);
+    if (!button) {
+      const row = document.createElement('div');
+      row.className = 'row civic-project';
+      const label = document.createElement('span');
+      label.textContent = t('build.' + project.type);
+      label.title = t('project.' + project.type);
+      button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'tbtn';
+      button.dataset.project = project.type;
+      button.addEventListener('click', () => {
+        const result = sim.sponsorProject(id, project.type);
+        toast(result.msg);
+        if (result.ok) {
+          selectSettle(id);
+          $('civicProjects').querySelector(`[data-project="${project.type}"]`)?.focus();
+          checkpoint(false);
+        }
+      });
+      row.append(label, button);
+      container.appendChild(row);
+    }
+    const action = t('project.' + project.status, project);
+    if (button.textContent !== action) button.textContent = action;
+    button.disabled = jumping || (project.status !== 'ready' && project.status !== 'queued');
+  }
 }
 
 function selectAgent(id) {
@@ -542,7 +595,14 @@ function setSpeed(v) {
   }
 }
 
-$('btnPause').addEventListener('click', () => { if (sim) sim.clock.paused = !sim.clock.paused; });
+function togglePause() {
+  if (!sim || jumping) return;
+  sim.clock.paused = !sim.clock.paused;
+  updateHUD();
+  if (sim.clock.paused) checkpoint(false);
+}
+
+$('btnPause').addEventListener('click', togglePause);
 document.querySelectorAll('.spd').forEach(b => {
   b.addEventListener('click', () => setSpeed(parseInt(b.dataset.spd)));
 });
@@ -597,7 +657,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'F3') { e.preventDefault(); $('perfPanel').classList.toggle('is-visible'); layoutPanels(); }
   if (e.code === 'Space' && sim) {
     e.preventDefault();
-    sim.clock.paused = !sim.clock.paused;
+    togglePause();
   }
   if (e.code === 'KeyM') toggleBigMap();
 });
@@ -654,7 +714,7 @@ function slotLabel(slot) {
 }
 
 async function doSave(slot) {
-  if (!sim) return;
+  if (!sim || jumping) throw new Error(t('slot.wait'));
   const data = {
     v: 3,
     seed: seedStr,
@@ -667,7 +727,23 @@ async function doSave(slot) {
     savedAt: Date.now(),
   };
   await saveWorld(slot, data);
+  if (slot === 'autosave') {
+    autoSaveProtected = false;
+    if (consumeManualLoad) {
+      const url = new URL(location.href);
+      url.searchParams.delete('load');
+      history.replaceState(null, '', url);
+      consumeManualLoad = false;
+    }
+  }
   if (slot !== 'autosave') toast(t('slot.saved', { slot: slotLabel(slot) }));
+}
+
+function checkpoint(notify) {
+  if (!sim || jumping || autoSaveProtected) return;
+  doSave('autosave').catch(error => {
+    if (notify) toast(t('slot.saveFailed') + error.message);
+  });
 }
 
 function mkSlotBtn(label, onClick) {
@@ -678,12 +754,20 @@ function mkSlotBtn(label, onClick) {
 }
 
 // 从槽位读取：整页跳转到 ?seed=<seed>&load=<slot>，启动流程会从该槽位恢复
-function loadFromSlot(slot, rec) {
-  const go = () => {
-    location.href = `${location.pathname}?seed=${encodeURIComponent(rec.seed)}&load=${encodeURIComponent(slot)}`;
-  };
-  if (rec.seed === seedStr) go();
-  else if (confirm(t('slot.otherWorld', { name: worldName(rec.seed), seed: rec.seed }))) go();
+async function loadFromSlot(slot) {
+  try {
+    const data = decodeWorldSave(await loadWorld(slot));
+    const message = data.seed === seedStr
+      ? t('slot.confirmLoad', { slot: slotLabel(slot) })
+      : t('slot.otherWorld', { name: worldName(data.seed), seed: data.seed });
+    if (confirm(message)) {
+      // The pending visibility save would overwrite a selected autosave before the new page loads.
+      autoSaveProtected = true;
+      location.href = `${location.pathname}?seed=${encodeURIComponent(data.seed)}&load=${encodeURIComponent(slot)}`;
+    }
+  } catch (error) {
+    toast(t('slot.loadFailed') + error.message);
+  }
 }
 
 async function renderSavePanel() {
@@ -709,11 +793,19 @@ async function renderSavePanel() {
       info.innerHTML = `<b>${slotLabel(slot)}</b><span>${t('slot.empty')}</span>`;
     }
     row.appendChild(info);
-    if (slot !== 'autosave') {
+    if (slot === 'autosave') {
+      row.appendChild(mkSlotBtn(t('slot.saveNow'), () => {
+        if (autoSaveProtected && !confirm(t('slot.overwriteInvalid'))) return;
+        doSave(slot).then(() => {
+          toast(t('slot.saved', { slot: slotLabel(slot) }));
+          return renderSavePanel();
+        }).catch(e => toast(t('slot.saveFailed') + e.message));
+      }));
+    } else {
       row.appendChild(mkSlotBtn(t('btn.save'), () => { doSave(slot).then(renderSavePanel).catch(e => toast(t('slot.saveFailed') + e.message)); }));
     }
     if (has) {
-      row.appendChild(mkSlotBtn(t('btn.load'), () => loadFromSlot(slot, rec)));
+      row.appendChild(mkSlotBtn(t('btn.load'), () => loadFromSlot(slot)));
       // E5：文件备份 —— 导出为 .json（可跨浏览器迁移 / 分享世界）
       row.appendChild(mkSlotBtn(t('btn.export'), () => { doExport(slot).catch(e => toast(t('slot.exportFailed') + e.message)); }));
       // E5：删除槽位（自动存档保留作为安全网，不提供删除）
@@ -766,12 +858,8 @@ function importSaveFile() {
     let data;
     try { data = JSON.parse(await file.text()); }
     catch (e) { toast(t('slot.importBadJson')); return; }
-    if (!data || typeof data !== 'object' || !data.sim || typeof data.sim !== 'object' || typeof data.seed !== 'string' || !data.seed.length || data.seed.length > 512) {
-      toast(t('slot.importNoData')); return;
-    }
-    if (!Number.isInteger(data.v) || data.v < 2 || data.v > 3) {
-      toast(t('slot.importTooOld')); return;
-    }
+    try { decodeWorldSave(data); }
+    catch (error) { toast(t('slot.importFailed') + error.message); return; }
     let target = null;
     try {
       const rows = await listWorlds();

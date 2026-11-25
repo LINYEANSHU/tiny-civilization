@@ -26,6 +26,7 @@ const BUILD_DEFS = {
   windmill:  { label: '风车', wood: 40, stone: 25, work: 90 },
   granary:   { label: '谷仓', wood: 30, stone: 10, work: 60 },
 };
+const CIVIC_PROJECTS = ['granary', 'market'];
 
 export class Settlement {
   constructor() {
@@ -282,6 +283,31 @@ export class Settlement {
   }
 
   // ============ 建造队列 ============
+  civicProjects() {
+    return CIVIC_PROJECTS.map(type => {
+      const def = BUILD_DEFS[type];
+      const position = this.buildQueue.findIndex(job => job.type === type);
+      let status = 'ready';
+      if (this[type]) status = 'built';
+      else if (position === 0 && this.buildQueue[position].sponsored) status = 'building';
+      else if (position >= 0) status = this.buildQueue[position].sponsored ? 'scheduled' : 'queued';
+      else if (!this.pads.length) status = 'noSite';
+      else if (this.wood < def.wood || this.stone < def.stone) status = 'materials';
+      return { type, status, wood: def.wood, stone: def.stone };
+    });
+  }
+
+  sponsorProject(type, world) {
+    const project = this.civicProjects().find(p => p.type === type);
+    if (!project || (project.status !== 'ready' && project.status !== 'queued')) return false;
+    if (project.status === 'ready' && !this.enqueue(type, world)) return false;
+    const index = this.buildQueue.findIndex(job => job.type === type);
+    const [job] = this.buildQueue.splice(index, 1);
+    job.sponsored = true;
+    this.buildQueue.unshift(job);
+    return true;
+  }
+
   enqueue(type, world) {
     const def = BUILD_DEFS[type];
     if (!def) return false;
@@ -467,12 +493,12 @@ export class Settlement {
       for (const f of this.farms) {
         if (f.ripe && !f.destroyed) this.harvestFarm(f, 0.9, env);
       }
-      // 远距自动施工
-      const q = this.buildQueue[0];
-      if (q) {
-        q.progress += 1.1;
-        if (q.progress >= q.need) { this.buildQueue.shift(); this.completeBuild(q, world, history); }
-      }
+    }
+    // Civic projects use the same hourly work rate at every camera distance.
+    const q = this.buildQueue[0];
+    if (q && (q.sponsored || !this.nearCamera || env.jumping)) {
+      q.progress += 1.1;
+      if (q.progress >= q.need) { this.buildQueue.shift(); this.completeBuild(q, world, history); }
     }
 
     // 林木再生
@@ -614,6 +640,7 @@ export class Settlement {
       buildQueue: this.buildQueue,
       effects: this.effects,
       tradePartners: [...this.tradePartners.entries()],
+      lastCaravanDay: this.lastCaravanDay,
     };
   }
 

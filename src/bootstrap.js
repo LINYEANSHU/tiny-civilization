@@ -1,6 +1,21 @@
 import { getLang } from './i18n.js';
+import { decodeWorldSave, loadWorld } from './save.js';
 
-import('./main.js').catch(error => {
+async function start() {
+  const url = new URL(location.href);
+  if (!url.searchParams.get('seed')) {
+    try {
+      const autosave = await loadWorld('autosave');
+      if (autosave) {
+        url.searchParams.set('seed', decodeWorldSave(autosave).seed);
+        history.replaceState(null, '', url);
+      }
+    } catch { /* The main app reports an unreadable checkpoint. */ }
+  }
+  await import('./main.js');
+}
+
+start().catch(error => {
   console.error('Tiny Civilization startup failed', error);
   const zh = getLang() === 'zh';
   const overlay = document.getElementById('overlay');

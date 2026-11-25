@@ -4,9 +4,11 @@
 // 长时间游玩会累积大量打开的 IDBDatabase 连接）。
 // ============================================================
 import { t } from './i18n.js';
+import { MIN_PER_DAY } from './core/config.js';
 
 const DB_NAME = 'tiny-civ-db';
 const STORE = 'worlds';
+const pendingWrites = new Map();
 
 function openDB() {
   return new Promise((res, rej) => {
@@ -20,6 +22,19 @@ function openDB() {
 }
 
 export async function saveWorld(slot, data) {
+  // Capture the current instant, even when a previous IndexedDB transaction is still open.
+  const snapshot = structuredClone(data);
+  const pending = pendingWrites.get(slot);
+  const write = (pending ? pending.catch(() => {}) : Promise.resolve()).then(() => writeWorld(slot, snapshot));
+  pendingWrites.set(slot, write);
+  try {
+    return await write;
+  } finally {
+    if (pendingWrites.get(slot) === write) pendingWrites.delete(slot);
+  }
+}
+
+async function writeWorld(slot, data) {
   const db = await openDB();
   return new Promise((res, rej) => {
     const tx = db.transaction(STORE, 'readwrite');
@@ -32,6 +47,7 @@ export async function saveWorld(slot, data) {
 }
 
 export async function loadWorld(slot) {
+  await pendingWrites.get(slot)?.catch(() => {});
   const db = await openDB();
   return new Promise((res, rej) => {
     const tx = db.transaction(STORE, 'readonly');
@@ -42,6 +58,7 @@ export async function loadWorld(slot) {
 }
 
 export async function deleteWorld(slot) {
+  await pendingWrites.get(slot)?.catch(() => {});
   const db = await openDB();
   return new Promise((res, rej) => {
     const tx = db.transaction(STORE, 'readwrite');
@@ -81,6 +98,52 @@ export function listWorlds() {
 
 // 手动存档槽位名（存档管理 UI 与启动 ?load= 参数共用）
 export const MANUAL_SLOTS = ['slot1', 'slot2', 'slot3'];
+
+const isRecord = value => value && typeof value === 'object' && !Array.isArray(value);
+const finite = value => typeof value === 'number' && Number.isFinite(value);
+const isPair = value => Array.isArray(value) && value.length === 2;
+
+export function decodeWorldSave(data) {
+  if (!isRecord(data) || typeof data.seed !== 'string' || !data.seed.length || data.seed.length > 512) {
+    throw new Error(t('slot.invalid'));
+  }
+  if (data.v !== 2 && data.v !== 3) throw new Error(t('slot.unsupported'));
+  const sim = data.sim;
+  const clock = sim?.clock;
+  if (!isRecord(sim) || !isRecord(clock) || !Number.isSafeInteger(clock.day) || clock.day < 1
+    || !finite(clock.min) || clock.min < 0 || clock.min >= MIN_PER_DAY
+    || (clock.speed !== undefined && (!finite(clock.speed) || clock.speed < 0 || clock.speed > 256))
+    || !Array.isArray(sim.settlements) || !isRecord(sim.nations) || !Array.isArray(sim.nations.list)
+    || !Array.isArray(sim.history)) throw new Error(t('slot.invalid'));
+
+  const ids = new Set();
+  for (const settlement of sim.settlements) {
+    if (!isRecord(settlement) || !Number.isSafeInteger(settlement.id) || ids.has(settlement.id)
+      || typeof settlement.name !== 'string' || ![settlement.x, settlement.z, settlement.g, settlement.pop,
+        settlement.food, settlement.wood, settlement.stone, settlement.wealth, settlement.morale].every(finite)
+      || !['houses', 'farms', 'pads', 'watchtowers', 'buildQueue'].every(key => Array.isArray(settlement[key])
+        && settlement[key].every(isRecord))
+      || (settlement.tradePartners !== undefined && (!Array.isArray(settlement.tradePartners)
+        || !settlement.tradePartners.every(isPair)))) throw new Error(t('slot.invalid'));
+    ids.add(settlement.id);
+  }
+  for (const nation of sim.nations.list) {
+    if (!isRecord(nation) || !Number.isSafeInteger(nation.id) || typeof nation.name !== 'string'
+      || !finite(nation.color) || !Array.isArray(nation.members)
+      || (nation.relations !== undefined && (!Array.isArray(nation.relations) || !nation.relations.every(isPair)))) {
+      throw new Error(t('slot.invalid'));
+    }
+  }
+  if (data.journal !== undefined && (!Array.isArray(data.journal) || !data.journal.every(entry => isPair(entry)
+    && (typeof entry[0] === 'string' || Number.isSafeInteger(entry[0])) && isRecord(entry[1]) && Array.isArray(entry[1].blocks)
+    && entry[1].blocks.every(block => Number.isSafeInteger(block) || (isPair(block) && block.every(Number.isSafeInteger)))
+    && Array.isArray(entry[1].plants) && entry[1].plants.every(plant => Array.isArray(plant) && plant.every(finite))))) {
+    throw new Error(t('slot.invalid'));
+  }
+  if (data.cam !== undefined && (data.cam === null || !['x', 'y', 'z', 'dist', 'yaw', 'pitch'].every(key => finite(data.cam[key]))
+    || data.cam.dist <= 0)) throw new Error(t('slot.invalid'));
+  return data;
+}
 
 // 编辑日志序列化
 export function serializeJournal(journal) {

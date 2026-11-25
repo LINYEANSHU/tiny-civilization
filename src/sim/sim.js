@@ -150,7 +150,7 @@ export class Sim {
 
     // Agent 每帧（时间跳跃期间冻结个体行为）
     this._ctx.onMine = this._mineFx;
-    if (!this.jumping) {
+    if (!this.jumping && !this.clock.paused) {
       this.agents.update(realDt, this._ctx);
       this.wildlife.update(realDt, { sim: this, cm: this.cm, camX, camZ });
     }
@@ -265,9 +265,12 @@ export class Sim {
   _mineFx = null;
 
   _materializeNear(camX, camZ) {
+    const near = SETTLE_NEAR * 16;
+    const far = near + 24;
     for (const s of this.settlements) {
-      const d = Math.hypot(s.x - camX, s.z - camZ);
-      if (!s.nearCamera && d < SETTLE_NEAR * 16) {
+      const dx = s.x - camX, dz = s.z - camZ;
+      const distanceSquared = dx * dx + dz * dz;
+      if (!s.nearCamera && distanceSquared < near * near) {
         s.nearCamera = true;
         s._matDay = this.clock.day;
         this.agents.materialize(s, this._ctx);
@@ -277,16 +280,21 @@ export class Sim {
         for (let cx = cx0; cx <= cx1; cx++) for (let cz = cz0; cz <= cz1; cz++) {
           s.syncCropsForChunk(this.cm, cx, cz);
         }
-      } else if (s.nearCamera && d > SETTLE_NEAR * 16 + 24) {
+      } else if (s.nearCamera && distanceSquared > far * far) {
         s.nearCamera = false;
         this.agents.despawnSettlement(s.id);
-      } else if (s.nearCamera && this.clock.day !== (s._matDay || 0)) {
+      } else if (s.nearCamera && this.clock.day - (s._matDay || 0) >= 2) {
         // 人口增长或新增岗位（码头建成等）→ 补充村民（每 2 天至多一次）
         const set = this.agents.bySettle.get(s.id);
         const cur = set ? set.size : 0;
         const want = Math.min(34, Math.max(4, Math.round(s.pop * 0.45)));
-        const needFisher = s.dock && ![...(set || [])].some(a => a.job === 'fisher');
-        if ((cur < want * 0.75 || needFisher) && this.clock.day - (s._matDay || 0) >= 2) {
+        let needFisher = !!s.dock;
+        if (needFisher && set) {
+          for (const agent of set) {
+            if (agent.job === 'fisher') { needFisher = false; break; }
+          }
+        }
+        if (cur < want * 0.75 || needFisher) {
           s._matDay = this.clock.day;
           this.agents.materialize(s, this._ctx);
         }
@@ -405,10 +413,20 @@ export class Sim {
     return best;
   }
 
+  sponsorProject(id, type) {
+    const settlement = this.settleById(id);
+    if (!settlement || this.jumping || !settlement.sponsorProject(type, this.world)) {
+      return { ok: false, msg: t('project.unavailable') };
+    }
+    const params = { name: settlement.name, type };
+    this.history.add('good', `ev.project.${type}`, params, this.clock.day, this.clock.year);
+    return { ok: true, msg: t('project.started', { name: settlement.name, project: t(`build.${type}`) }) };
+  }
+
   // ============ 序列化 ============
   serialize() {
     return {
-      clock: { min: this.clock.min, day: this.clock.day, speed: this.clock.speed },
+      clock: { min: this.clock.min, day: this.clock.day, speed: this.clock.speed, paused: this.clock.paused },
       settlements: this.settlements.map(s => s.serialize()),
       nations: this.nations.serialize(),
       disasters: this.disasters.serialize(),
@@ -422,6 +440,7 @@ export class Sim {
     sim.clock.min = data.clock.min;
     sim.clock.day = data.clock.day;
     sim.clock.speed = data.clock.speed || 1;
+    sim.clock.paused = data.clock.paused === true;
     sim.settlements = data.settlements.map(d => Settlement.deserialize(d));
     sim.nations = Nations.deserialize(data.nations, sim.settlements);
     sim.disasters = Disasters.deserialize(data.disasters);

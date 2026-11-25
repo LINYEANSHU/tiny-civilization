@@ -1,8 +1,8 @@
 // ============================================================
 // time.js — 游戏时钟：日历 / 季节 / 昼夜 / 变速
-// 1 现实秒（1×）= 12 游戏分钟；一天 90s；一年 48 天（四季各 12 天）
+// 1 现实秒（1×）= 12 游戏分钟；一天 120s；一年 48 天（四季各 12 天）
 // ============================================================
-import { GAME_MIN_PER_SEC, MIN_PER_DAY, DAYS_PER_MONTH, MONTHS_PER_YEAR } from '../core/config.js';
+import { GAME_MIN_PER_SEC, MIN_PER_DAY, SIM_TICK_MIN, DAYS_PER_MONTH, MONTHS_PER_YEAR } from '../core/config.js';
 import { t } from '../i18n.js';
 
 export class GameClock {
@@ -11,7 +11,6 @@ export class GameClock {
     this.day = 1;           // 从 1 开始的总天数
     this.speed = 1;
     this.paused = true;
-    this._carry = 0;        // 累积未消费的游戏分钟
   }
 
   get year() { return Math.floor((this.day - 1) / (DAYS_PER_MONTH * MONTHS_PER_YEAR)) + 1; }
@@ -24,19 +23,10 @@ export class GameClock {
   // 推进真实时间，返回跨越的完整小时数（供模拟 tick）
   advance(realDt) {
     if (this.paused) return 0;
-    const gm = realDt * GAME_MIN_PER_SEC * this.speed;
-    this._carry += gm;
-    let hours = 0;
-    while (this._carry >= 60) {
-      this._carry -= 60;
-      this.min += 60;
-      hours++;
-      if (this.min >= MIN_PER_DAY) { this.min -= MIN_PER_DAY; this.day++; }
-    }
-    // 小数分钟直接推进显示
-    this.min += this._carry;
-    while (this.min >= MIN_PER_DAY) { this.min -= MIN_PER_DAY; this.day++; }
-    this._carry = 0;
+    const elapsed = this.min + realDt * GAME_MIN_PER_SEC * this.speed;
+    const hours = Math.floor(elapsed / SIM_TICK_MIN) - Math.floor(this.min / SIM_TICK_MIN);
+    this.day += Math.floor(elapsed / MIN_PER_DAY);
+    this.min = elapsed % MIN_PER_DAY;
     return hours;
   }
 
