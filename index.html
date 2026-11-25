@@ -30,7 +30,7 @@
 
   <!-- 顶部左：世界信息 -->
   <div id="worldInfo" class="panel glass">
-    <div class="wi-row"><span id="worldName">—</span><button id="btnRename" data-i18n-title="tooltip.rename">⟳</button></div>
+    <div class="wi-row"><span id="worldName">—</span><button id="btnRename" data-i18n-title="tooltip.rename">⟳</button><button id="btnModes" type="button" aria-haspopup="dialog">游戏模式</button></div>
     <div class="wi-sub">Seed <span id="seedLabel">—</span></div>
     <div class="wi-grid">
       <span id="dateLabel">—</span><span id="seasonLabel">—</span>
@@ -141,6 +141,8 @@
       <p data-i18n-html="help.save"><b>存档</b>：💾 打开存档管理（自动存档 + 3 个手动槽位），读取存档会离开当前世界</p>
     </div>
   </div>
+
+  <dialog id="modePanel" class="glass" aria-labelledby="modeTitle"></dialog>
 
   <!-- 底部提示条 -->
   <div id="toast" class="hidden" role="status" aria-live="polite"></div>

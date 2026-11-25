@@ -21,11 +21,11 @@ function openDB() {
   });
 }
 
-export async function saveWorld(slot, data) {
+export async function saveWorld(slot, data, mayWrite) {
   // Capture the current instant, even when a previous IndexedDB transaction is still open.
   const snapshot = structuredClone(data);
   const pending = pendingWrites.get(slot);
-  const write = (pending ? pending.catch(() => {}) : Promise.resolve()).then(() => writeWorld(slot, snapshot));
+  const write = (pending ? pending.catch(() => {}) : Promise.resolve()).then(() => writeWorld(slot, snapshot, mayWrite));
   pendingWrites.set(slot, write);
   try {
     return await write;
@@ -34,12 +34,18 @@ export async function saveWorld(slot, data) {
   }
 }
 
-async function writeWorld(slot, data) {
+async function writeWorld(slot, data, mayWrite) {
   const db = await openDB();
   return new Promise((res, rej) => {
     const tx = db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).put(data, slot);
-    tx.oncomplete = () => { db.close(); res(true); };
+    const store = tx.objectStore(STORE);
+    let written = false;
+    function put() { store.put(data, slot); written = true; }
+    if (mayWrite) {
+      const current = store.get(slot);
+      current.onsuccess = () => { if (mayWrite(current.result)) put(); };
+    } else put();
+    tx.oncomplete = () => { db.close(); res(written); };
     tx.onerror = () => { db.close(); rej(tx.error); };
     // onabort 补充：异常中止时旧实现既不 resolve 也不 reject（调用方永久挂起）
     tx.onabort = () => { db.close(); rej(tx.error || new Error(t('db.txAbort'))); };

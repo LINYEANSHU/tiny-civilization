@@ -47,6 +47,32 @@ html, body {
 .panel { position: fixed; z-index: 20; padding: 12px 14px; }
 .hidden { display: none !important; }
 
+#btnModes { color: var(--acc); margin-left: auto; white-space: nowrap; }
+#modePanel {
+  position: fixed;
+  inset: 0;
+  width: min(530px, calc(100% - 30px));
+  max-height: calc(100dvh - 32px);
+  color: var(--ink);
+  padding: 18px;
+  margin: auto;
+  overflow: auto;
+}
+#modePanel::backdrop { background: #111d17bb; }
+.mode-head, .mode-entry, .mode-goals li { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.mode-head h2, .mode-entry h3 { margin: 0; }
+.mode-entry { padding: 13px 0; border-bottom: 1px solid var(--bg3); }
+.mode-entry p { margin: 5px 0 0; color: var(--dim); }
+.mode-entry a { text-decoration: none; white-space: nowrap; }
+.mode-note { color: var(--dim); }
+.mode-goals { padding: 0; list-style: none; }
+.mode-goals li { padding: 7px 0; }
+.mode-goals strong { color: var(--dim); white-space: nowrap; }
+.mode-goals .goal-complete strong { color: var(--good); }
+.mode-launch:not(:disabled) { background: var(--acc); color: #201906; }
+.mode-status:empty { display: none; }
+#modePanel > .tbtn { margin-top: 12px; }
+
 button:focus-visible, summary:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 ::selection { background: rgba(255, 217, 122, 0.35); }
 

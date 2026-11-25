@@ -10,8 +10,12 @@ import { Particles } from './render/particles.js';
 import { Minimap } from './render/minimap.js';
 import { Sim } from './sim/sim.js';
 import { AUTOSAVE_MS, SEA } from './core/config.js';
-import { saveWorld, loadWorld, deleteWorld, listWorlds, MANUAL_SLOTS, serializeJournal, deserializeJournal, decodeWorldSave } from './save.js';
+import { saveWorld as writeStoredWorld, loadWorld as readStoredWorld, deleteWorld as deleteStoredWorld, listWorlds as listStoredWorlds,
+  MANUAL_SLOTS, serializeJournal, deserializeJournal, decodeWorldSave } from './save.js';
 import { t, getLang, toggleLang, applyStatic, onLangChange, evText } from './i18n.js';
+import { isSpaceSave, launchCampaign, playMode, restoreSpaceSave, SAVE_SLOTS, worldSlot, worldURL } from './space/modes.js';
+import { installLobby } from './space/lobby.js';
+import { phrase } from './space/strings.js';
 
 const $ = (id) => document.getElementById(id);
 const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
@@ -24,6 +28,26 @@ const WSTATE_STR = ['clear', 'cloud', 'rain', 'storm', 'snow', 'blizzard', 'fog'
 
 // ---------- 参数 ----------
 const qs = new URLSearchParams(location.search);
+const mode = playMode(qs.get('mode'));
+const saveWorld = (slot, data, mayWrite) => writeStoredWorld(worldSlot(mode, slot), data, mayWrite);
+const loadWorld = slot => readStoredWorld(worldSlot(mode, slot));
+const deleteWorld = slot => deleteStoredWorld(worldSlot(mode, slot));
+const listWorlds = async () => {
+  const records = new Map((await listStoredWorlds()).map(record => [record.slot, record]));
+  return SAVE_SLOTS.flatMap(slot => {
+    const record = records.get(worldSlot(mode, slot));
+    return record ? [{ ...record, slot }] : [];
+  });
+};
+
+function decodeModeSave(data) {
+  if (mode === 'campaign' && isSpaceSave(data) && data.mode === mode) {
+    restoreSpaceSave(data);
+    return data;
+  }
+  return decodeWorldSave(data);
+}
+
 let seedStr = qs.get('seed') || String((Math.random() * 1e9) | 0);
 // Keep a generated world's identity through reloads so its autosave can be found.
 if (!qs.get('seed')) {
@@ -65,9 +89,7 @@ function openWorldWithAutosave(seed, slot = null) {
   try { sessionStorage.setItem(AUTOSAVE_INTENT, JSON.stringify([seed, slot])); } catch { /* Save Now remains available. */ }
   // Navigation must not checkpoint the world being left over the requested slot.
   autoSaveProtection = 'navigating';
-  const search = new URLSearchParams({ seed });
-  if (slot) search.set('load', slot);
-  location.href = `${location.pathname}?${search}`;
+  location.href = worldURL(mode, seed, slot);
 }
 
 // ---------- 工具 ----------
@@ -167,7 +189,7 @@ async function boot() {
     ]);
     const autosave = loadSlot === 'autosave' ? record : separateAutosave;
     if (autosave && autosave.seed !== seedStr && !mayReplaceAutosave) {
-      decodeWorldSave(autosave);
+      decodeModeSave(autosave);
       autoSaveProtection = 'otherSeed';
     }
     if (record && record.seed === seedStr) {
@@ -226,7 +248,7 @@ async function boot() {
   refreshSettleList();
   refreshHistory();
   layoutPanels();
-  if (consumeManualLoad || mayReplaceAutosave) checkpoint(true);
+  if (consumeManualLoad || mayReplaceAutosave) checkpoint(true, mayReplaceAutosave);
 }
 
 // ---------- 主循环 ----------
@@ -305,6 +327,7 @@ function updateHUD() {
     b.classList.toggle('active', !c.paused && parseInt(b.dataset.spd) === c.speed);
   });
   $('btnPause').classList.toggle('active', c.paused);
+  refreshLobby();
 }
 
 function refreshSettleList() {
@@ -733,6 +756,25 @@ $('btnRename').addEventListener('click', () => {
   }
 });
 
+const refreshLobby = installLobby(mode, () => sim, async () => {
+  if (jumping) return 'liftWait';
+  const slot = worldSlot('campaign', 'autosave');
+  if (!await writeStoredWorld(slot, groundSnapshot(), saved => !saved)) return 'campaignExists';
+  location.href = worldURL('campaign', seedStr);
+}, async () => {
+  if (jumping) return 'liftWait';
+  if (!confirm(phrase('liftCheck'))) return '';
+  if (autoSaveProtection && !confirm(phrase('replaceAuto'))) return '';
+  const previousProtection = autoSaveProtection;
+  autoSaveProtection = 'navigating';
+  try {
+    const written = await saveWorld('autosave', launchCampaign(groundSnapshot()), previousProtection ? undefined : matchesGroundCampaign);
+    if (!written) { autoSaveProtection = 'otherSeed'; return 'campaignExists'; }
+  }
+  catch (error) { autoSaveProtection = previousProtection; throw error; }
+  location.href = worldURL('campaign', seedStr);
+});
+
 // ---------- 存档（E1：多槽位存档管理） ----------
 function slotLabel(slot) {
   if (slot === 'autosave') return t('slot.autosave');
@@ -740,9 +782,9 @@ function slotLabel(slot) {
   return i >= 0 ? t('slot.named', { n: i + 1 }) : slot;
 }
 
-async function doSave(slot) {
+function groundSnapshot() {
   if (!sim || jumping) throw new Error(t('slot.wait'));
-  const data = {
+  return {
     v: 3,
     seed: seedStr,
     sim: sim.serialize(),
@@ -753,7 +795,19 @@ async function doSave(slot) {
     },
     savedAt: Date.now(),
   };
-  await saveWorld(slot, data);
+}
+
+function matchesGroundCampaign(record) {
+  return !record || (record.seed === seedStr && !isSpaceSave(record));
+}
+
+async function doSave(slot, allowOverwrite = false) {
+  if (autoSaveProtection === 'navigating') throw new Error(t('slot.wait'));
+  const guard = slot === 'autosave' && mode === 'campaign' && !allowOverwrite ? matchesGroundCampaign : undefined;
+  if (!await saveWorld(slot, groundSnapshot(), guard)) {
+    autoSaveProtection = 'otherSeed';
+    throw new Error(phrase('campaignExists'));
+  }
   if (slot === 'autosave') {
     if (consumeManualLoad) {
       const url = new URL(location.href);
@@ -765,9 +819,9 @@ async function doSave(slot) {
   if (slot !== 'autosave') toast(t('slot.saved', { slot: slotLabel(slot) }));
 }
 
-function checkpoint(notify) {
+function checkpoint(notify, allowOverwrite = false) {
   if (!sim || jumping || autoSaveProtection) return;
-  doSave('autosave').catch(error => {
+  doSave('autosave', allowOverwrite).catch(error => {
     if (notify) toast(t('slot.saveFailed') + error.message);
   });
 }
@@ -782,7 +836,7 @@ function mkSlotBtn(label, onClick) {
 // 从槽位读取：整页跳转到 ?seed=<seed>&load=<slot>，启动流程会从该槽位恢复
 async function loadFromSlot(slot) {
   try {
-    const data = decodeWorldSave(await loadWorld(slot));
+    const data = decodeModeSave(await loadWorld(slot));
     let message = data.seed === seedStr
       ? t('slot.confirmLoad', { slot: slotLabel(slot) })
       : t('slot.otherWorld', { name: worldName(data.seed), seed: data.seed });
@@ -810,7 +864,7 @@ async function renderSavePanel() {
     if (has) {
       const d = rec.savedAt ? new Date(rec.savedAt) : null;
       info.innerHTML = `<b>${slotLabel(slot)}${slot === 'autosave' ? t('slot.every3') : ''}</b>`
-        + `<span>${worldName(String(rec.seed))} · Seed ${escapeHtml(rec.seed)}</span>`
+        + `<span>${rec.v === 4 ? phrase('title') : worldName(String(rec.seed))} · Seed ${escapeHtml(rec.seed)}</span>`
         + `<span>${d ? d.toLocaleString() : ''}</span>`;
     } else {
       info.innerHTML = `<b>${slotLabel(slot)}</b><span>${t('slot.empty')}</span>`;
@@ -820,7 +874,7 @@ async function renderSavePanel() {
       row.appendChild(mkSlotBtn(t('slot.saveNow'), () => {
         if (autoSaveProtection === 'navigating') return;
         if (autoSaveProtection && !confirm(t(autoSaveProtection === 'otherSeed' ? 'slot.overwriteOther' : 'slot.overwriteInvalid'))) return;
-        doSave(slot).then(() => {
+        doSave(slot, !!autoSaveProtection).then(() => {
           if (autoSaveProtection !== 'navigating') autoSaveProtection = null;
           toast(t('slot.saved', { slot: slotLabel(slot) }));
           return renderSavePanel();
@@ -883,7 +937,7 @@ function importSaveFile() {
     let data;
     try { data = JSON.parse(await file.text()); }
     catch (e) { toast(t('slot.importBadJson')); return; }
-    try { decodeWorldSave(data); }
+    try { decodeModeSave(data); }
     catch (error) { toast(t('slot.importFailed') + error.message); return; }
     let target = null;
     try {

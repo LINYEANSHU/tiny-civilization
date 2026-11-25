@@ -13,6 +13,7 @@ Watch quietly, or change the weather, plant a forest or found a settlement.
 **[Download the portable Windows x64 build (ZIP)](https://github.com/LINYEANSHU/tiny-civilization/releases/download/windows-v1.0.0/tiny-civilization-windows-x64.zip)** · [Release notes](https://github.com/LINYEANSHU/tiny-civilization/releases/tag/windows-v1.0.0)
 
 Extract the entire ZIP, open the `Tiny Civilization` folder, and double-click `Tiny Civilization.exe`. When the world is ready, you can watch the first settlement. Keep the folder together when moving the game.
+This download is Windows v1.0.0. The interstellar modes run from the current source.
 
 <img src="assets/readme/windows-desktop.webp" width="100%" alt="Tiny Civilization for Windows showing a voxel settlement, the world chronicle, time controls and a minimap">
 
@@ -37,9 +38,18 @@ Captured during the November 6, 2026 desktop Chromium review with SwiftShader CP
 
 There are no victory conditions or quests. Time controls and god tools let you compare long-term changes and return to ordinary observation anytime.
 
+## The interstellar age
+
+Open **Game modes** in the world header. **Interstellar sandbox** starts on the star atlas with a spacefaring homeworld. **Rise to orbit** begins on the ground. After two years, a peak population of 12 in one settlement and a completed quarry, market or granary, the campaign can launch. **Use this ground world for the campaign** copies your existing world. Launching preserves its final ground state as an exportable archive.
+
+- Explore 192 seeded star systems. Inspect orbits, stellar forecasts and planetary resources, then send survey, settlement, trade, truce or military missions from a controlled world.
+- Each inhabited planet has a resident civilization. Its allegiance can change, and competitors expand and retaliate. Key worlds update annually and distant civilizations update in batches of eight years.
+- Four technological ages and six environment-specific paths contain 90 projects. Planetary terrain and climate determine which adaptations are available.
+- Signals travel at light speed and interstellar ships travel below it. Local transfers use orbital windows. The simulation models two-body orbits and average stellar flux. Some aging stars follow accelerated scenario timetables so their expansion and collapse can affect a campaign.
+
 ## Run the browser version from source
 
-Requires Node.js 22+, npm and a modern desktop browser supporting WebGL 2.
+Requires Node.js 22+, npm and a modern desktop browser. Ground mode needs WebGL 2. The interstellar sandbox runs in Canvas 2D.
 
 ```bash
 git clone https://github.com/LINYEANSHU/tiny-civilization.git
@@ -56,6 +66,7 @@ http://127.0.0.1:8138/?seed=my-world
 ```
 
 The URL's `seed` sets the initial world. Generated seeds are written back to the URL so reloading can find the matching autosave.
+Use `?mode=space&seed=my-world` to open the sandbox or `?mode=campaign` to start or continue Rise to orbit.
 
 ```bash
 npm run build       # output: dist/
@@ -86,6 +97,7 @@ Select a settlement and open Civic Projects to put a granary or market first in 
 IndexedDB autosaves every 3 minutes and when the page is hidden. It also provides 3 manual slots.
 The bottom save panel supports saving, loading, deleting and JSON export/import.
 Saves include the seed, clock, settlements, nations, voxel-edit journal, history and camera state.
+Each mode has its own autosave and manual slots. Interstellar progress includes research, resident civilizations and missions in transit, and autosaves after major commands and time jumps. Older v2/v3 ground saves still load and import.
 
 Opening the game resumes the autosave, including the pause state and speed. A shared seed URL preserves the autosave of another world. Loading a manual slot from Save Manager resumes autosaving from that world.
 A seed preserves the initial world. An evolved world also needs its save. The Windows app stores data in `%APPDATA%\Entertainment Desktop\tiny-civilization` by default.
@@ -104,12 +116,13 @@ npm run build
 - The same-day browser review covered desktop/narrow layouts, settlement selection, Chronicle, manual slots, map, language switching and seed persistence on reload.
 - The game uses Three.js / WebGL 2. The Windows app renders on the CPU with SwiftShader. The web version follows the browser's rendering settings.
 - Run `node --test test/world-progress.test.js` to check hourly simulation, civic projects, and save compatibility.
+- Run `node --test test/interstellar.test.js` to check the atlas, stellar evolution, signal delay, colonization, conquest, research dependencies and campaign migration.
 
 ## Development entry points
 
 On Windows x64 with Node.js 24, run `node desktop/build.cjs` to produce the desktop package in `desktop/dist/`. [Desktop build script](desktop/build.cjs)
 
-`src/world/` handles terrain, chunks and Worker meshing; `src/sim/` handles residents, settlements, nations and time; `src/save.js` handles persistence.
+`src/world/` handles terrain, chunks and Worker meshing. `src/sim/` handles ground residents, settlements, nations and time. `src/space/` handles the atlas and interstellar simulation and interface. `src/save.js` handles persistence.
 See [DESIGN.md](DESIGN.md) for the design notes (Chinese).
 
 ## Contributors
