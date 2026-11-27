@@ -29,5 +29,8 @@ jobs:
           done < <(find src -name "*.js" -type f)
           exit $fail
 
+      - name: Test ground and interstellar progression
+        run: node --test test/*.test.js
+
       - name: Build
         run: npm run build
